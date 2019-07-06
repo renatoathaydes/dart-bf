@@ -39,7 +39,9 @@ class Move implements Op {
 }
 
 class Loop implements Op {
-  final List<Op> ops = [];
+  final List<Op> ops;
+
+  Loop(this.ops);
 
   @override
   void call(Tape tape) {
@@ -64,59 +66,44 @@ class Noop implements Op {
 }
 
 class Program {
-  final _rootOps = <Op>[];
-  final _opsStack = <List<Op>>[];
+  List<Op> _rootOps;
 
-  Program() {
-    _opsStack.add(_rootOps);
-  }
-
-  Op _parseOp(int value) {
-    switch (String.fromCharCode(value)) {
-      case '+':
-        return const Inc(1);
-      case '-':
-        return const Inc(-1);
-      case '>':
-        return const Move(1);
-      case '<':
-        return const Move(-1);
-      case '.':
-        return const Print();
-      case '[':
-        return Loop();
-      case ']':
-        return null;
-      default:
-        return const Noop();
-    }
-  }
-
-  void parse(List<int> code) {
-    List<Op> ops = _opsStack.last;
-    for (var c in code) {
-      var op = _parseOp(c);
-      if (op == null) {
-        // loop ended
-        _opsStack.removeLast();
-        ops = _opsStack.last;
-      } else {
-        ops.add(op);
-        if (op is Loop) {
-          ops = op.ops;
-          _opsStack.add(ops);
-        }
+  List<Op> _parseOps(Iterator<int> code) {
+    List<Op> ops = [];
+    while (code.moveNext()) {
+      switch (String.fromCharCode(code.current)) {
+        case '+':
+          ops.add(const Inc(1));
+          break;
+        case '-':
+          ops.add(const Inc(-1));
+          break;
+        case '>':
+          ops.add(const Move(1));
+          break;
+        case '<':
+          ops.add(const Move(-1));
+          break;
+        case '.':
+          ops.add(const Print());
+          break;
+        case '[':
+          ops.add(Loop(_parseOps(code)));
+          break;
+        case ']':
+          return ops;
       }
     }
+    return ops;
   }
+
+  void parse(String code) => _rootOps = _parseOps(code.runes.iterator);
 
   void call(Tape tape) => _rootOps.forEach((op) => op(tape));
 }
 
-void execute(Stream<List<int>> code) async {
+void execute(String code) {
   final program = Program();
-  await for (final bytes in code) {
-    program.parse(bytes);
-  }
+  program.parse(code);
   program(Tape());
 }
